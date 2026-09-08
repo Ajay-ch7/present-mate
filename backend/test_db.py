@@ -1,20 +1,10 @@
-import os
-import asyncio
-from dotenv import load_dotenv
-from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import MongoClient
+import json
 
-load_dotenv(override=True)
-
-async def test_connection():
-    uri = os.getenv("MONGO_URI")
-    print(f"Loaded URI: {uri}")
-    
-    try:
-        client = AsyncIOMotorClient(uri, serverSelectionTimeoutMS=5000)
-        await client.admin.command('ping')
-        print("Successfully connected to MongoDB!")
-    except Exception as e:
-        print(f"Connection failed: {e}")
-
-if __name__ == "__main__":
-    asyncio.run(test_connection())
+db = MongoClient('mongodb+srv://pm-user-1:pm-user-1@presentmate.q1py79t.mongodb.net/?appName=Presentmate').presentmate
+pres = list(db.presentations.find().sort('_id', -1).limit(1))
+if len(pres) > 0:
+    for i, slide in enumerate(pres[0]['slides']):
+        print(f"Slide {i}: number={slide.get('slide_number')} summary={slide.get('summary')}")
+else:
+    print("No presentations found")

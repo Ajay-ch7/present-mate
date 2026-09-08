@@ -1,0 +1,41 @@
+{
+  "name": "presentmate-desktop",
+  "version": "1.0.0",
+  "description": "PresentMate Desktop Overlay — AI presentation coach",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder"
+  },
+  "keywords": [],
+  "author": "PresentMate",
+  "license": "MIT",
+  "dependencies": {
+    "active-win": "^8.1.1",
+    "axios": "^1.6.7",
+    "electron-store": "^8.1.0"
+  },
+  "devDependencies": {
+    "electron": "^29.1.4",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.presentmate.desktop",
+    "productName": "PresentMate",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**",
+      "bridge/**",
+      "assets/**"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    }
+  }
+}
