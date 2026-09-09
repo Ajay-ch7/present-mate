@@ -11,6 +11,9 @@ from typing import List
 from services.pdf_parser import extract_text_from_pdf
 from services.ppt_parser import extract_text_from_pptx
 from services.ai_service import generate_slide_summary
+#presentmate
+
+
 
 router = APIRouter()
 
