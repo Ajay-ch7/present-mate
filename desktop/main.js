@@ -13,11 +13,12 @@ const Store = require('electron-store');
 const store = new Store();
 const isDev = process.argv.includes('--dev');
 
+// Initialize overlay and bridge components
 let overlayWindow = null;
 let bridgeProcess = null;
 let slideshowActive = false;
 let detectionInterval = null;
-let noSlideshowCounter = 0; // Stability counter
+let noSlideshowCounter = 0; // Stability counter for slideshow detection
 const STABILITY_THRESHOLD = 3; // Number of failed checks before hiding
 let lastIgnoreToggle = 0;
 

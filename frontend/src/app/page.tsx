@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Mic, Presentation, FileText } from "lucide-react";
 
+// Enhanced landing page with optimized UI components
 export default function LandingPage() {
   return (
     <div className="flex flex-col min-h-screen bg-cream-50 text-slate-900 overflow-hidden relative">
