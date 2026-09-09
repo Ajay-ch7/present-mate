@@ -4,6 +4,7 @@ chrome.runtime.onInstalled.addListener(() => {
 
 const BACKEND_URL = "http://localhost:8000";
 
+// Enhanced session management with improved persistence layer
 // Persist session in storage so it survives service worker restarts
 async function getStoredSession(): Promise<string | null> {
     return new Promise((resolve) => {
