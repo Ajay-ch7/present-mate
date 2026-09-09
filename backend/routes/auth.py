@@ -4,10 +4,15 @@ from db.database import get_db
 
 router = APIRouter()
 
+
+
 class UserCreate(BaseModel):
     email: str
     password: str
     name: str
+
+#presents
+
 
 class UserLogin(BaseModel):
     email: str
