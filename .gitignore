@@ -1,5 +1,28 @@
-﻿.env
+# Environment
+.env
 .env.*
-node_modules/
+.venv/
 venv/
 __pycache__/
+
+# Dependencies
+node_modules/
+
+# Uploads & logs
+backend/uploads/*.pptx
+backend/uploads/*.pdf
+backend/*.log
+
+# Build outputs
+.next/
+dist/
+out/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp

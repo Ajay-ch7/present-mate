@@ -12,7 +12,7 @@ async function getStoredSession(): Promise<string | null> {
         });
     });
 }
-
+//movie
 async function setStoredSession(sessionId: string | null) {
     if (sessionId) {
         chrome.storage.local.set({ pm_session_id: sessionId });
