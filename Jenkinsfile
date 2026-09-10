@@ -9,12 +9,27 @@ pipeline {
             }
         }
 
+        stage('Check Tools') {
+            steps {
+                bat '''
+                    echo Checking Python...
+                    "C:\\Users\\D.Navaneeth\\anaconda3\\python.exe" --version
+
+                    echo Checking Node...
+                    "C:\\Program Files\\nodejs\\node.exe" --version
+
+                    echo Checking NPM...
+                    "C:\\Program Files\\nodejs\\npm.cmd" --version
+                '''
+            }
+        }
+
         stage('Backend Setup') {
             steps {
                 bat '''
                     cd backend
-                    python -m pip install --upgrade pip
-                    pip install -r requirements.txt
+                    "C:\\Users\\D.Navaneeth\\anaconda3\\python.exe" -m pip install --upgrade pip
+                    "C:\\Users\\D.Navaneeth\\anaconda3\\python.exe" -m pip install -r requirements.txt
                 '''
             }
         }
@@ -23,7 +38,7 @@ pipeline {
             steps {
                 bat '''
                     cd frontend
-                    npm install
+                    "C:\\Program Files\\nodejs\\npm.cmd" install
                 '''
             }
         }
@@ -32,7 +47,7 @@ pipeline {
             steps {
                 bat '''
                     cd frontend
-                    npm run build
+                    "C:\\Program Files\\nodejs\\npm.cmd" run build
                 '''
             }
         }
@@ -41,7 +56,7 @@ pipeline {
             steps {
                 bat '''
                     cd backend
-                    python -m compileall .
+                    "C:\\Users\\D.Navaneeth\\anaconda3\\python.exe" -m compileall .
                 '''
             }
         }
