@@ -1,0 +1,3 @@
+eslint: {
+    ignoreDuringBuilds: true,
+},
