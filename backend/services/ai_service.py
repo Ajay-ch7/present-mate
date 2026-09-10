@@ -2,6 +2,12 @@ import os
 import json
 import asyncio
 import re
+import base64
+import io
+import time
+import hashlib
+from collections import OrderedDict
+import speech_recognition as sr
 from google import genai
 from google.genai import types
 from schemas.presentation import SlideSummary
@@ -21,16 +27,38 @@ MODEL_FALLBACK_CHAIN = [
 _current_model_idx = 0
 
 
+# Cached singleton client to reuse HTTP/2 connection pool & TLS sessions
+_cached_client = None
 
-async def transcribe_audio_chunk(audio_base64: str) -> str:
-    """
-    Transcribes a base64-encoded audio chunk (WAV format) using Google's free Speech Recognition API.
-    This replaces Gemini for STT because it behaves true to real-time dictation engines.
-    """
-    import base64
-    import io
-    import speech_recognition as sr
+# Bounded in-memory cache for slide summaries to avoid redundant API calls
+class _SimpleLRUCache:
+    def __init__(self, maxsize: int = 256, ttl_seconds: int = 600):
+        self.maxsize = maxsize
+        self.ttl_seconds = ttl_seconds
+        self.cache = OrderedDict()
 
+    def get(self, key: str):
+        if key in self.cache:
+            val, timestamp = self.cache[key]
+            if time.time() - timestamp < self.ttl_seconds:
+                self.cache.move_to_end(key)
+                return val
+            else:
+                del self.cache[key]
+        return None
+
+    def set(self, key: str, value):
+        if key in self.cache:
+            del self.cache[key]
+        elif len(self.cache) >= self.maxsize:
+            self.cache.popitem(last=False)
+        self.cache[key] = (value, time.time())
+
+_slide_summary_cache = _SimpleLRUCache(maxsize=256, ttl_seconds=600)
+_overlay_summary_cache = _SimpleLRUCache(maxsize=256, ttl_seconds=300)
+
+def _sync_transcribe(audio_base64: str) -> str:
+    """Synchronous worker function executed in thread pool."""
     try:
         audio_data = base64.b64decode(audio_base64)
         file_obj = io.BytesIO(audio_data)
@@ -49,11 +77,19 @@ async def transcribe_audio_chunk(audio_base64: str) -> str:
         print(error_msg)
         return f"__ERROR__ {error_msg}"
 
+async def transcribe_audio_chunk(audio_base64: str) -> str:
+    """
+    Transcribes a base64-encoded audio chunk (WAV format) using Google's free Speech Recognition API.
+    Runs in a background thread to prevent blocking the asyncio event loop.
+    """
+    return await asyncio.to_thread(_sync_transcribe, audio_base64)
 
 def _get_client():
-    api_key = os.getenv("GEMINI_API_KEY")
-    return genai.Client(api_key=api_key)
-
+    global _cached_client
+    if _cached_client is None:
+        api_key = os.getenv("GEMINI_API_KEY")
+        _cached_client = genai.Client(api_key=api_key)
+    return _cached_client
 
 def _extract_retry_delay(error_msg: str) -> float:
     """Extract the retry delay from a 429 error message, default 5s."""
@@ -61,6 +97,7 @@ def _extract_retry_delay(error_msg: str) -> float:
     if match:
         return min(float(match.group(1)), 15)  # Cap at 15s to avoid long waits
     return 5.0
+
 
 
 async def _generate_with_fallback(contents, response_mime_type="application/json"):
@@ -164,7 +201,20 @@ Respond ONLY with the JSON object, no markdown fences."""
 async def generate_slide_summary(slide_number: int, text: str) -> SlideSummary:
     """
     Calls Gemini to generate summary, key points, and likely questions for a given slide text.
+    Uses in-memory cache to return instantly for repeated content.
     """
+    clean_text = text.strip()
+    cache_key = hashlib.sha256(clean_text.encode("utf-8")).hexdigest()
+    cached_data = _slide_summary_cache.get(cache_key)
+    if cached_data:
+        return SlideSummary(
+            slide_number=slide_number,
+            raw_text=text,
+            summary=cached_data.get("summary", ""),
+            key_points=cached_data.get("key_points", []),
+            likely_questions=cached_data.get("likely_questions", [])
+        )
+
     prompt = f"""
     You are an AI assistant helping a presenter. Given the text from a presentation slide, extract the following:
     1. A concise 2-4 line summary.
@@ -186,6 +236,7 @@ async def generate_slide_summary(slide_number: int, text: str) -> SlideSummary:
         
         result_content = response.text
         data = json.loads(result_content)
+        _slide_summary_cache.set(cache_key, data)
         
         return SlideSummary(
             slide_number=slide_number,
@@ -251,6 +302,12 @@ async def summarize_slide_text(slide_text: str) -> dict:
     Quickly summarizes slide OCR text into a plain-language summary and key bullet points.
     Used by the desktop overlay to show what the current slide is about.
     """
+    clean_text = slide_text.strip()
+    cache_key = hashlib.sha256(clean_text.encode("utf-8")).hexdigest()
+    cached_data = _overlay_summary_cache.get(cache_key)
+    if cached_data:
+        return cached_data
+
     prompt = f"""
 You are an AI assistant helping a live presenter understand their current slide at a glance.
 
@@ -269,16 +326,19 @@ Respond in strict JSON:
     try:
         response = await _generate_with_fallback(prompt)
         data = json.loads(response.text)
-        return {
+        result = {
             "summary": data.get("summary", ""),
             "key_points": data.get("key_points", []),
         }
+        _overlay_summary_cache.set(cache_key, result)
+        return result
     except Exception as e:
         print(f"Error in summarize_slide_text: {e}")
         return {
             "summary": "Could not summarize slide content.",
             "key_points": [],
         }
+
 
 
 async def analyze_presentation_context(slide_text: str, transcript: str) -> dict:

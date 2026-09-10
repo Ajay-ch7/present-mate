@@ -1,8 +1,8 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, BackgroundTasks
 from db.database import get_db
 from datetime import datetime
-import shutil
 import os
+import uuid
 import asyncio
 from bson.objectid import ObjectId
 from pydantic import BaseModel
@@ -11,9 +11,6 @@ from typing import List
 from services.pdf_parser import extract_text_from_pdf
 from services.ppt_parser import extract_text_from_pptx
 from services.ai_service import generate_slide_summary
-#presentmate
-
-
 
 router = APIRouter()
 
@@ -31,6 +28,35 @@ class AddinPresentationRequest(BaseModel):
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+# Maximum concurrent Gemini AI requests per presentation to maximize throughput while avoiding rate limits
+MAX_CONCURRENT_AI_TASKS = 5
+
+async def _save_upload_file(upload_file: UploadFile, destination_path: str) -> None:
+    """Save an uploaded file asynchronously without blocking the event loop."""
+    def _write():
+        with open(destination_path, "wb") as buffer:
+            while chunk := upload_file.file.read(1024 * 1024):  # 1MB chunks
+                buffer.write(chunk)
+    await asyncio.to_thread(_write)
+
+async def _process_slides_concurrently(raw_slides: List[str]) -> List[dict]:
+    """Process all slides with bounded concurrency, preserving slide order."""
+    sem = asyncio.Semaphore(MAX_CONCURRENT_AI_TASKS)
+
+    async def _summarize_single(slide_num: int, text: str) -> dict:
+        async with sem:
+            summary = await generate_slide_summary(slide_num, text)
+            return {
+                "slide_number": summary.slide_number,
+                "raw_text": summary.raw_text,
+                "summary": summary.summary,
+                "key_points": summary.key_points,
+                "likely_questions": summary.likely_questions,
+            }
+
+    tasks = [_summarize_single(i + 1, text) for i, text in enumerate(raw_slides)]
+    return await asyncio.gather(*tasks)
+
 async def process_presentation(file_path: str, presentation_id: str, content_type: str):
     db = await get_db()
     
@@ -40,11 +66,11 @@ async def process_presentation(file_path: str, presentation_id: str, content_typ
         {"$set": {"processing_status": "processing"}}
     )
     
-    raw_slides = []
+    # Run CPU-bound text extraction in worker thread so event loop remains non-blocking
     if content_type == "application/pdf":
-        raw_slides = extract_text_from_pdf(file_path)
+        raw_slides = await asyncio.to_thread(extract_text_from_pdf, file_path)
     else:
-        raw_slides = extract_text_from_pptx(file_path)
+        raw_slides = await asyncio.to_thread(extract_text_from_pptx, file_path)
         
     total_slides = len(raw_slides)
     await db.presentations.update_one(
@@ -52,27 +78,18 @@ async def process_presentation(file_path: str, presentation_id: str, content_typ
         {"$set": {"total_slides": total_slides}}
     )
     
-    processed_slides = []
-    for i, text in enumerate(raw_slides):
-        slide_num = i + 1
-        summary = await generate_slide_summary(slide_num, text)
-        processed_slides.append({
-            "slide_number": summary.slide_number,
-            "raw_text": summary.raw_text,
-            "summary": summary.summary,
-            "key_points": summary.key_points,
-            "likely_questions": summary.likely_questions
-        })
-        
-        # Incremental save
-        await db.presentations.update_one(
-            {"_id": ObjectId(presentation_id)},
-            {"$set": {"slides": processed_slides}}
-        )
-        
+    # Process slides concurrently with controlled parallelism
+    processed_slides = await _process_slides_concurrently(raw_slides)
+    
+    # Single batch update eliminates O(N^2) DB round-trips
     await db.presentations.update_one(
         {"_id": ObjectId(presentation_id)},
-        {"$set": {"processing_status": "ready"}}
+        {
+            "$set": {
+                "slides": processed_slides,
+                "processing_status": "ready",
+            }
+        }
     )
     print(f"Finished processing {presentation_id}")
 
@@ -81,9 +98,13 @@ async def upload_presentation(user_id: str, background_tasks: BackgroundTasks, f
     if file.content_type not in ["application/pdf", "application/vnd.openxmlformats-officedocument.presentationml.presentation"]:
          raise HTTPException(status_code=400, detail="Only PDF and PPTX files are supported")
     
-    file_path = f"{UPLOAD_DIR}/{file.filename}"
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    # Use collision-resistant filename
+    file_ext = os.path.splitext(file.filename)[1]
+    safe_filename = f"{uuid.uuid4().hex}_{file.filename}"
+    file_path = os.path.join(UPLOAD_DIR, safe_filename)
+    
+    # Asynchronous file save
+    await _save_upload_file(file, file_path)
 
     presentation_doc = {
         "user_id": user_id,
@@ -106,7 +127,8 @@ async def upload_presentation(user_id: str, background_tasks: BackgroundTasks, f
 
 @router.get("/")
 async def list_presentations(user_id: str, db = Depends(get_db)):
-    cursor = db.presentations.find({"user_id": user_id})
+    # Project out slides to save bandwidth and reduce latency on dashboard
+    cursor = db.presentations.find({"user_id": user_id}, {"slides": 0})
     presentations = await cursor.to_list(length=100)
     for p in presentations:
         p["_id"] = str(p["_id"])
@@ -114,7 +136,6 @@ async def list_presentations(user_id: str, db = Depends(get_db)):
 
 @router.get("/{id}")
 async def get_presentation(id: str, db = Depends(get_db)):
-    from bson.objectid import ObjectId
     presentation = await db.presentations.find_one({"_id": ObjectId(id)})
     if not presentation:
         raise HTTPException(status_code=404, detail="Presentation not found")
@@ -156,29 +177,20 @@ async def create_presentation_from_addin(
             {"_id": ObjectId(presentation_id_str)},
             {"$set": {"processing_status": "processing"}},
         )
-        processed_slides = []
-        for i, text in enumerate(raw_slides):
-            slide_num = i + 1
-            summary = await generate_slide_summary(slide_num, text)
-            processed_slides.append(
-                {
-                    "slide_number": summary.slide_number,
-                    "raw_text": summary.raw_text,
-                    "summary": summary.summary,
-                    "key_points": summary.key_points,
-                    "likely_questions": summary.likely_questions,
-                }
-            )
-            await db.presentations.update_one(
-                {"_id": ObjectId(presentation_id_str)},
-                {"$set": {"slides": processed_slides}},
-            )
+        # Concurrent processing with bounded Semaphore
+        processed_slides = await _process_slides_concurrently(raw_slides)
         await db.presentations.update_one(
             {"_id": ObjectId(presentation_id_str)},
-            {"$set": {"processing_status": "ready"}},
+            {
+                "$set": {
+                    "slides": processed_slides,
+                    "processing_status": "ready",
+                }
+            },
         )
         print(f"[addin] Finished processing presentation {presentation_id_str}")
 
     background_tasks.add_task(process_addin_presentation)
 
     return {"message": "Presentation received", "presentation_id": presentation_id_str}
+
