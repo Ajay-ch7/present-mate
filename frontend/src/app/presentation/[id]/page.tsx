@@ -5,8 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2, Search, Copy, CheckCheck, PlayCircle, Presentation } from "lucide-react";
-import Link from "next/link";
 import { Input } from "@/components/ui/input";
+import { ScrollProgress } from "@/components/ui/scroll-progress";
+import { ScrollReveal } from "@/components/ui/scroll-reveal";
 
 export default function PresentationDetailsPage() {
   const { id } = useParams();
@@ -95,7 +96,8 @@ export default function PresentationDetailsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-cream-50 text-slate-900 font-sans pb-20">
+    <div className="min-h-screen bg-cream-50 text-slate-900 font-sans pb-20 relative">
+      <ScrollProgress />
       <header className="bg-white/80 backdrop-blur-md border-b border-teal-100 px-6 py-4 flex items-center justify-between sticky top-0 z-50">
         <Link href="/dashboard" className="inline-flex items-center text-sm font-semibold text-teal-700 hover:text-teal-900 hover:bg-teal-50 px-3 py-2 rounded-lg transition-all">
           <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
@@ -185,42 +187,47 @@ export default function PresentationDetailsPage() {
             
             <div className="space-y-6">
               {filteredSlides.map((slide: any, idx: number) => (
-                <div key={slide.slide_number} 
-                     className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-teal-50 hover:shadow-xl hover:border-teal-200 hover:-translate-y-1 transition-all duration-300 flex flex-col md:flex-row gap-6 md:gap-8 group animate-fade-in-up"
-                     style={{animationDelay: `${(idx % 10) * 0.05 + 0.2}s`}}>
-                  
-                  <div className="flex-shrink-0 w-16 h-16 md:w-24 md:h-24 bg-cream-50 rounded-2xl flex items-center justify-center border-2 border-cream-100 text-teal-600 font-black text-2xl md:text-3xl group-hover:bg-teal-50 group-hover:border-teal-200 transition-colors shadow-inner">
-                    {slide.slide_number}
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-lg text-slate-800 mb-2 uppercase tracking-wide text-xs text-teal-600">Slide Summary</h3>
-                    <p className="text-slate-700 mb-6 text-base leading-relaxed font-medium">{slide.summary || "No summary available."}</p>
+                <ScrollReveal 
+                  key={slide.slide_number}
+                  animation="fade-up"
+                  delay={(idx % 4) * 60}
+                >
+                  <div 
+                    className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-teal-50 hover:shadow-xl hover:border-teal-200 hover:-translate-y-1 transition-all duration-300 flex flex-col md:flex-row gap-6 md:gap-8 group"
+                  >
+                    <div className="flex-shrink-0 w-16 h-16 md:w-24 md:h-24 bg-cream-50 rounded-2xl flex items-center justify-center border-2 border-cream-100 text-teal-600 font-black text-2xl md:text-3xl group-hover:bg-teal-50 group-hover:border-teal-200 transition-colors shadow-inner">
+                      {slide.slide_number}
+                    </div>
                     
-                    <div className="grid md:grid-cols-2 gap-8 bg-slate-50 p-6 rounded-2xl border border-slate-100">
-                      <div>
-                        <h4 className="font-bold text-sm text-slate-800 mb-3 uppercase tracking-wider text-teal-700 flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-emerald-500"></div> Key Talking Points
-                        </h4>
-                        <ul className="list-disc leading-relaxed pl-5 text-sm md:text-base text-slate-600 space-y-2 marker:text-emerald-500 font-medium">
-                          {slide.key_points?.map((pt: string, idx: number) => (
-                            <li key={idx}>{pt}</li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-sm text-slate-800 mb-3 uppercase tracking-wider text-amber-600 flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-amber-500"></div> Likely Audience Questions
-                        </h4>
-                        <ul className="list-disc leading-relaxed pl-5 text-sm md:text-base text-slate-600 space-y-2 marker:text-amber-500 font-medium">
-                          {slide.likely_questions?.map((q: string, idx: number) => (
-                            <li key={idx} className="italic text-slate-700">"{q}"</li>
-                          ))}
-                        </ul>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-lg text-slate-800 mb-2 uppercase tracking-wide text-xs text-teal-600">Slide Summary</h3>
+                      <p className="text-slate-700 mb-6 text-base leading-relaxed font-medium">{slide.summary || "No summary available."}</p>
+                      
+                      <div className="grid md:grid-cols-2 gap-8 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                        <div>
+                          <h4 className="font-bold text-sm text-slate-800 mb-3 uppercase tracking-wider text-teal-700 flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-emerald-500"></div> Key Talking Points
+                          </h4>
+                          <ul className="list-disc leading-relaxed pl-5 text-sm md:text-base text-slate-600 space-y-2 marker:text-emerald-500 font-medium">
+                            {slide.key_points?.map((pt: string, idx: number) => (
+                              <li key={idx}>{pt}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-sm text-slate-800 mb-3 uppercase tracking-wider text-amber-600 flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-amber-500"></div> Likely Audience Questions
+                          </h4>
+                          <ul className="list-disc leading-relaxed pl-5 text-sm md:text-base text-slate-600 space-y-2 marker:text-amber-500 font-medium">
+                            {slide.likely_questions?.map((q: string, idx: number) => (
+                              <li key={idx} className="italic text-slate-700">"{q}"</li>
+                            ))}
+                          </ul>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                </ScrollReveal>
               ))}
             </div>
             
