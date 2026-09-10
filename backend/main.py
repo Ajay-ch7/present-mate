@@ -19,8 +19,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="PresentMate Backend", lifespan=lifespan)
 
-# Compress responses larger than 1KB to reduce network latency
-app.add_middleware(GZipMiddleware, minimum_size=1000)
+# Compress responses larger than 2KB to reduce network latency
+app.add_middleware(GZipMiddleware, minimum_size=2000)
 
 app.add_middleware(
     CORSMiddleware,
