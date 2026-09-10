@@ -12,13 +12,8 @@ pipeline {
         stage('Check Tools') {
             steps {
                 bat '''
-                    echo Checking Python...
                     "C:\\Users\\D.Navaneeth\\anaconda3\\python.exe" --version
-
-                    echo Checking Node...
                     "C:\\Program Files\\nodejs\\node.exe" --version
-
-                    echo Checking NPM...
                     "C:\\Program Files\\nodejs\\npm.cmd" --version
                 '''
             }
@@ -28,7 +23,6 @@ pipeline {
             steps {
                 bat '''
                     cd backend
-                    "C:\\Users\\D.Navaneeth\\anaconda3\\python.exe" -m pip install --upgrade pip
                     "C:\\Users\\D.Navaneeth\\anaconda3\\python.exe" -m pip install -r requirements.txt
                 '''
             }
@@ -51,24 +45,17 @@ pipeline {
                 '''
             }
         }
-
-        stage('Backend Check') {
-            steps {
-                bat '''
-                    cd backend
-                    "C:\\Users\\D.Navaneeth\\anaconda3\\python.exe" -m compileall .
-                '''
-            }
-        }
     }
 
     post {
         success {
-            echo 'PresentMate build completed successfully!'
+            
+            echo ' PRESENTMATE BUILD SUCCESSFUL!'
+            
         }
 
         failure {
-            echo 'PresentMate build failed!'
+            echo 'PRESENTMATE BUILD FAILED!'
         }
     }
 }
