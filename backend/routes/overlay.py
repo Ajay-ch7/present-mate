@@ -55,14 +55,26 @@ async def analyze_overlay(request: AnalyzeRequest):
     Receives OCR-extracted slide text and the live speech transcript.
     Returns an AI coaching suggestion with on/off-track status.
     """
-    if not request.slide_text.strip() and not request.transcript.strip():
+    cleaned_transcript = request.transcript.strip()
+    cleaned_slide_text = request.slide_text.strip()
+
+    if not cleaned_slide_text and not cleaned_transcript:
         raise HTTPException(status_code=400, detail="Both slide_text and transcript cannot be empty.")
 
+    # Fast-path for silence to avoid unnecessary AI round-trip latency
+    if not cleaned_transcript:
+        return {
+            "status": "no_speech",
+            "suggestion": "Listening to your presentation...",
+            "confidence": 1.0,
+        }
+
     result = await analyze_presentation_context(
-        slide_text=request.slide_text,
-        transcript=request.transcript,
+        slide_text=cleaned_slide_text,
+        transcript=cleaned_transcript,
     )
     return result
+
 
 
 class VisionRequest(BaseModel):

@@ -1,18 +1,14 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
+from bson.objectid import ObjectId
 from db.database import get_db
 
 router = APIRouter()
-
-
 
 class UserCreate(BaseModel):
     email: str
     password: str
     name: str
-
-#presents
-
 
 class UserLogin(BaseModel):
     email: str
@@ -21,7 +17,7 @@ class UserLogin(BaseModel):
 @router.post("/signup")
 async def signup(user: UserCreate, db = Depends(get_db)):
     # Phase 1 simple MVP, no hashing for brevity yet
-    existing_user = await db.users.find_one({"email": user.email})
+    existing_user = await db.users.find_one({"email": user.email}, {"_id": 1})
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     
@@ -31,7 +27,10 @@ async def signup(user: UserCreate, db = Depends(get_db)):
 
 @router.post("/login")
 async def login(user: UserLogin, db = Depends(get_db)):
-    db_user = await db.users.find_one({"email": user.email, "password": user.password})
+    db_user = await db.users.find_one(
+        {"email": user.email, "password": user.password},
+        {"name": 1}
+    )
     if not db_user:
         raise HTTPException(status_code=400, detail="Invalid credentials")
     
@@ -39,8 +38,11 @@ async def login(user: UserLogin, db = Depends(get_db)):
 
 @router.get("/me")
 async def get_me(user_id: str, db = Depends(get_db)):
-    from bson.objectid import ObjectId
-    user = await db.users.find_one({"_id": ObjectId(user_id)})
+    try:
+        user = await db.users.find_one({"_id": ObjectId(user_id)}, {"email": 1, "name": 1})
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid user ID format")
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return {"email": user["email"], "name": user["name"]}
+
