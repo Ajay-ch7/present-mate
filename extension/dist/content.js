@@ -1,4 +1,3 @@
-"use strict";
 const API_URL = "http://localhost:8000";
 let activeSessionId = null;
 let overlayDiv = null;
@@ -7,6 +6,14 @@ let pollingInterval = null;
 let isStealthMode = false;
 let currentSlide = 1;
 let totalSlides = 1;
+function escapeHtml(value) {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
 // Inject global animations once
 const injectStyles = () => {
     if (document.getElementById("pm-global-styles"))
@@ -154,7 +161,9 @@ async function changeSlide(direction) {
     currentSlide = newSlide;
     updateNavButtons();
     try {
-        await fetch(`${API_URL}/sessions/${activeSessionId}/slide?slide_number=${newSlide}`, { method: "POST" });
+        const response = await fetch(`${API_URL}/sessions/${activeSessionId}/slide?slide_number=${newSlide}`, { method: "POST" });
+        if (!response.ok)
+            throw new Error(`Slide update failed (${response.status})`);
         fetchCurrentSlideHints();
     }
     catch (e) {
@@ -188,18 +197,18 @@ async function fetchCurrentSlideHints() {
         if (!contentDiv)
             return;
         if (data.message) {
-            contentDiv.innerHTML = `<p style="font-size:14px; color:#64748b; font-weight:500;">${data.message}</p>`;
+            contentDiv.innerHTML = `<p style="font-size:14px; color:#64748b; font-weight:500;">${escapeHtml(data.message)}</p>`;
         }
         else {
             let html = `<div style="margin-bottom:12px;">
                 <strong style="color:#0d9488; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:1px; display:block; margin-bottom:6px;">Slide ${data.slide_number} of ${data.total_slides}</strong>
-                <p style="font-size:15px; margin:0; color:#1e293b; font-weight:500; line-height:1.5;">${data.summary}</p>
+                <p style="font-size:15px; margin:0; color:#1e293b; font-weight:500; line-height:1.5;">${escapeHtml(data.summary)}</p>
             </div>`;
             if (data.key_points?.length > 0) {
                 html += `<div>
                     <strong style="color:#0d9488; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:1px;">Key Points</strong>
                     <ul style="font-size:13px; margin:6px 0 0 0; padding-left:18px; line-height:1.6; color:#334155; font-weight:500;">`;
-                data.key_points.forEach((pt) => { html += `<li style="margin-bottom:4px;">${pt}</li>`; });
+                data.key_points.forEach((pt) => { html += `<li style="margin-bottom:4px;">${escapeHtml(pt)}</li>`; });
                 html += `</ul></div>`;
             }
             contentDiv.innerHTML = html;
@@ -257,11 +266,11 @@ function toggleListening() {
             });
             const data = await res.json();
             if (data.hint?.answer_hint) {
-                let qaHtml = `<strong style="color:#d97706; font-size:13px; display:block; margin-bottom:4px;">Q: ${transcript}</strong>`;
-                qaHtml += `<p style="font-size:14px; margin:0 0 8px 0; color:#0f172a; font-weight:600;">${data.hint.answer_hint}</p>`;
+                let qaHtml = `<strong style="color:#d97706; font-size:13px; display:block; margin-bottom:4px;">Q: ${escapeHtml(transcript)}</strong>`;
+                qaHtml += `<p style="font-size:14px; margin:0 0 8px 0; color:#0f172a; font-weight:600;">${escapeHtml(data.hint.answer_hint)}</p>`;
                 if (data.hint.talking_points?.length > 0) {
                     qaHtml += `<ul style="font-size:13px; margin:0; padding-left:18px; color:#334155; font-weight:500;">`;
-                    data.hint.talking_points.forEach((tp) => { qaHtml += `<li>${tp}</li>`; });
+                    data.hint.talking_points.forEach((tp) => { qaHtml += `<li>${escapeHtml(tp)}</li>`; });
                     qaHtml += `</ul>`;
                 }
                 if (micStatus)
@@ -326,3 +335,4 @@ window.addEventListener("message", (event) => {
         chrome.runtime.sendMessage({ type: "STOP_SESSION" });
     }
 });
+export {};

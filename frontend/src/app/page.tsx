@@ -95,6 +95,7 @@ const FAQS = [
   }
 ];
 
+// Enhanced landing page with optimized UI components
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
   const [selectedScenario, setSelectedScenario] = useState<QuestionScenario>(DEMO_SCENARIOS[0]);

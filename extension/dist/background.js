@@ -3,6 +3,7 @@ chrome.runtime.onInstalled.addListener(() => {
     console.log("PresentMate Extension Installed.");
 });
 const BACKEND_URL = "http://localhost:8000";
+// Enhanced session management with improved persistence layer
 // Persist session in storage so it survives service worker restarts
 async function getStoredSession() {
     return new Promise((resolve) => {
@@ -11,6 +12,7 @@ async function getStoredSession() {
         });
     });
 }
+//movie
 async function setStoredSession(sessionId) {
     if (sessionId) {
         chrome.storage.local.set({ pm_session_id: sessionId });
@@ -68,7 +70,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         broadcastToAllTabs({ type: "SET_STEALTH_MODE", enabled: message.enabled });
         sendResponse({ success: true });
     }
-    if (message.type === "STOP_SESSION") {
+    if (message.type === "STOP_SESSION" || message.type === "DISCONNECT_SESSION") {
         setStoredSession(null);
         broadcastToAllTabs({ type: "HIDE_OVERLAY" });
         sendResponse({ success: true });
