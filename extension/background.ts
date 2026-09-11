@@ -74,7 +74,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ success: true });
     }
 
-    if (message.type === "STOP_SESSION") {
+    if (message.type === "STOP_SESSION" || message.type === "DISCONNECT_SESSION") {
         setStoredSession(null);
         broadcastToAllTabs({ type: "HIDE_OVERLAY" });
         sendResponse({ success: true });
