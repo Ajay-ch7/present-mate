@@ -1,4 +1,4 @@
-# PresentMate (Phase 1)
+# PresentMate 
 
 PresentMate is a full-stack real-time AI presentation assistant.
 
