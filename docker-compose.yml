@@ -1,0 +1,41 @@
+
+services:
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      MONGO_URI: mongodb://mongo:27017/presentmate
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    depends_on:
+      - mongo
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  selenium:
+    image: selenium/standalone-chrome:latest
+    shm_size: 2gb
+    ports:
+      - "4444:4444"
+
+  ui-tests:
+    build: ./tests
+    depends_on:
+      - frontend
+      - selenium
+    environment:
+      APP_URL: http://frontend:3000
+      SELENIUM_URL: http://selenium:4444
